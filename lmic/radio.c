@@ -137,7 +137,16 @@ void os_radio (u1_t mode) {
 
         case RADIO_RX:
             radio_stop();
+
+            // receive frame at rxtime/now (wait for completion interrupt)
+            radio_startrx(false);
+            // set timeout for rx operation (should not happen, might be updated by radio driver)
+            state.txmode = 0;
+            radio_set_irq_timeout(LMIC.rxtime + ms2osticks(5) + LMIC_calcAirTime(LMIC.rps, 255) * 110 / 100);
+
 #ifdef DEBUG_RX
+            // Debug printing after starting RX, to prevent a slow UART
+            // from delaying the RX start
             if( isFsk(LMIC.rps) ) {
                 debug_printf("RX_MODE[mod=FSK,nocrc=%d", getNocrc(LMIC.rps));
             } else {
@@ -150,16 +159,18 @@ void os_radio (u1_t mode) {
                          LMIC.freq, 6,
                          LMIC.rxtime, 0);
 #endif
-            // receive frame at rxtime/now (wait for completion interrupt)
-            radio_startrx(false);
-            // set timeout for rx operation (should not happen, might be updated by radio driver)
-            state.txmode = 0;
-            radio_set_irq_timeout(LMIC.rxtime + ms2osticks(5) + LMIC_calcAirTime(LMIC.rps, 255) * 110 / 100);
             break;
 
         case RADIO_RXON:
             radio_stop();
+
+            // start scanning for frame now (wait for completion interrupt)
+            state.txmode = 0;
+            radio_startrx(true);
+
 #ifdef DEBUG_RX
+            // Debug printing after starting RX, to prevent a slow UART
+            // from delaying the RX start
             if( isFsk(LMIC.rps) ) {
                 debug_printf("RXON_MODE[mod=FSK,nocrc=%d", getNocrc(LMIC.rps));
             } else {
@@ -170,9 +181,6 @@ void os_radio (u1_t mode) {
             }
             debug_printf_continue(",freq=%.1F]\r\n", LMIC.freq, 6);
 #endif
-            // start scanning for frame now (wait for completion interrupt)
-            state.txmode = 0;
-            radio_startrx(true);
             break;
 
         case RADIO_TXCW:
